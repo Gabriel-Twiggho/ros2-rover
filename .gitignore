@@ -1,0 +1,27 @@
+# ROS2 build output
+build/
+install/
+log/
+
+# ROS2 dependency packages (already have their own repos!)
+src/ament/
+src/eProsima/
+src/eclipse-cyclonedds/
+src/eclipse-iceoryx/
+src/gazebo-release/
+src/image_pipeline/
+src/image_transport_plugins/
+src/osrf/
+src/realtime_support/
+src/ros/
+src/ros-perception/
+src/ros-planning/
+src/ros-tooling/
+src/ros-visualization/
+src/ros2/
+src/vision_opencv/
+src/camera_ros/
+
+# Python cache
+__pycache__/
+*.pyc
