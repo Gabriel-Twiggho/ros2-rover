@@ -6,6 +6,8 @@ from std_msgs.msg import String, Bool  # Standard ROS2 message types (speech com
 from geometry_msgs.msg import Twist  # Message type for velocity commands
 from word2number import w2n #converts numbers to digits
 import re  # Regex module (used to parse numbers from speech commands)
+import subprocess #allows us to run raspi console commands from this script in python
+
 
 
 # --- Define the custom ROS2 node ---
@@ -16,9 +18,9 @@ class SpeechCommandParserNode(Node):
 
         # --- Parameters (configurable at runtime) ---
         self.declare_parameter('linear_speed', 0.25)   # Robot's forward/backward speed in m/s
-        self.declare_parameter('angular_speed', 1.0)   # Robot's turning speed in rad/s
+        self.declare_parameter('angular_speed', 2.4)   # Robot's turning speed in rad/s
         self.declare_parameter('default_duration', 1.0)  # Default motion duration in seconds
-        self.declare_parameter('max_duration', 7)      # Maximum allowed duration in seconds
+        self.declare_parameter('max_duration', 10)      # Maximum allowed duration in seconds
 
         self.linear_speed = self.get_parameter('linear_speed').value
         self.angular_speed = self.get_parameter('angular_speed').value
@@ -73,9 +75,16 @@ class SpeechCommandParserNode(Node):
             self.publish_estop_state()
             return
 
+        if 'shut' in command and 'down' in command and 'confirm' in command:
+            self.get_logger().info('Command to shutdown robot in process...')
+            self.stop_motion()
+            subprocess.run(["sudo", "shutdown", "now"])
+            return 
+
         if self.estop_latched:
             self.get_logger().info('E-Stop is active. Ignoring command. Say "resume" to clear.')
             return
+        
 
         # --- Motion Command Parsing ---
         twist_msg = Twist()

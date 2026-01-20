@@ -15,7 +15,7 @@ class MotorDriverNode(Node):
         self.declare_parameter('right_pwm_pin', 22)
 
         #kinematics
-        self.declare_parameter('wheel_separation', 0.164) # Meters (approx width)
+        self.declare_parameter('wheel_separation', 0.166) # Meters (approx width)
         self.declare_parameter('max_speed', 0.6) # m/s (Software speed cap)
         self.declare_parameter('pwm_frequency', 20000) # Hz (Ultrasonic)       
 

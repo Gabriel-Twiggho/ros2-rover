@@ -39,5 +39,11 @@ def generate_launch_description():
             cmd=['bash', os.path.join(scripts_dir, 'run_virtual_diffdrive.sh')],
             name='virtual_diffdrive_process',
             output='screen'
+        ),
+
+        ExecuteProcess(
+            cmd=['bash', os.path.join(scripts_dir, 'run_motor_driver.sh')],
+            name='motor_driver_process',
+            output='screen'
         )
     ])
