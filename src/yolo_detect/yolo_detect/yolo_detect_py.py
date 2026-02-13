@@ -169,7 +169,7 @@ class YoloDetectNode(Node):
             cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             
             #the image comes in upside down so lets flip it
-            cv_image = cv2.flip(cv_image, -1)
+            #cv_image = cv2.flip(cv_image, -1)
             
             # Safety check - make sure decoding worked
             if cv_image is None:
