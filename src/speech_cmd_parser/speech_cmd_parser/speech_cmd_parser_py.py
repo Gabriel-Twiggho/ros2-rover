@@ -31,15 +31,17 @@ class SpeechCommandParserNode(Node):
         self.vel = Twist()
 
         # --- State Variables ---
-        self.estop_latched = False       # Tracks whether emergency stop is active
+        self.current_mode = "MANUAL" # MANUAL, FOLLOW or ESTOP
+        self.mode_before_estop = self.current_mode #Mode to remember during Estop
         self.motion_timer = None         # Holds the motion timer (dead-man's switch)
 
         # creates QOS profile, Publisher sends message → Subscriber receives it, Publisher keeps last message in memory, If subscriber connects later → Gets the LAST message immediately! With Queue size of 1
         latched_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
         # --- Publishers ---
-        self.cmd_vel_publisher = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_vel_publisher = self.create_publisher(Twist, '/cmd_vel_manual', 10)
         self.estop_publisher = self.create_publisher(Bool, '/estop', latched_qos)
+        self.mode_publisher = self.create_publisher(String, '/sys/mode', latched_qos)
 
         # --- Subscribers ---
         self.speech_subscription = self.create_subscription(
@@ -50,29 +52,53 @@ class SpeechCommandParserNode(Node):
         self.create_timer(0.1, self.pub_vel)
 
         self.get_logger().info("Speech Command Parser is ready.")
-        self.publish_estop_state()
+        self.publish_state()
 
     # --- Callback for handling incoming speech commands ---
     def speech_callback(self, msg):
         command = msg.data.lower()
         self.get_logger().info(f'Received original command: "{command}"')
         
+    
         # We only log the converted command if it actually changed.
         if command != msg.data.lower():
             self.get_logger().info(f'Converted command to: "{command}"')
+        
+        # ---- PRIORITY 1
 
-        # --- E-Stop Logic ---
-        if 'stop' in command:
-            self.get_logger().warn('EMERGENCY STOP command received!')
-            self.estop_latched = True
+        if 'manual' in command:
+            if self.current_mode == "ESTOP":
+                self.get_logger().warn("Cannot follow: E-Stop active. Say 'Resume' first.")
+                return
+            self.get_logger().info("Switching to MANUAL mode.")
+            self.current_mode = "MANUAL"
             self.stop_motion()
-            self.publish_estop_state()
+            self.publish_state()
+            return
+
+        if 'stop' in command or 'emergency' in command:
+            self.get_logger().warn("EMERGENCY STOP TRIGGERED.")
+            if self.current_mode != "ESTOP":
+                self.mode_before_estop = self.current_mode
+            self.current_mode = "ESTOP"
+            self.stop_motion()
+            self.publish_state()
             return
 
         if 'resume' in command:
-            self.get_logger().info('Resume command received.')
-            self.estop_latched = False
-            self.publish_estop_state()
+            self.get_logger().info("Resuming operation (MANUAL)")
+            self.current_mode = self.mode_before_estop
+            self.publish_state()
+            return
+
+        if 'follow' in command and 'me' in command:
+            if self.current_mode == "ESTOP":
+                self.get_logger().warn("Cannot follow: E-Stop active. Say 'Resume' first.")
+                return
+            self.get_logger().info("Switching to FOLLOW mode.")
+            self.current_mode = "FOLLOW"
+            self.stop_motion()
+            self.publish_state()
             return
 
         if 'shut' in command and 'down' in command and 'confirm' in command:
@@ -80,11 +106,12 @@ class SpeechCommandParserNode(Node):
             self.stop_motion()
             subprocess.run(["sudo", "shutdown", "now"])
             return 
-
-        if self.estop_latched:
-            self.get_logger().info('E-Stop is active. Ignoring command. Say "resume" to clear.')
-            return
         
+        # ---- PRIORITY 2: Ignore motion if not in Manual
+        if self.current_mode != "MANUAL":
+            if 'forward' in command or 'back' in command or 'backward' in command or 'left' in command or 'right' in command:
+                self.get_logger().info(f"Ignored '{command}' - current mode is {self.current_mode}")
+            return
 
         # --- Motion Command Parsing ---
         twist_msg = Twist()
@@ -109,9 +136,6 @@ class SpeechCommandParserNode(Node):
             twist_msg.angular.z = self.angular_speed
         elif 'right' in command:
             twist_msg.angular.z = -self.angular_speed
-        elif 'stop' in command:
-            self.stop_motion()
-            return
         else:
             return
 
@@ -124,24 +148,31 @@ class SpeechCommandParserNode(Node):
         self.motion_timer = self.create_timer(duration, self.stop_motion)
 
     def pub_vel(self):
-        twist_msg = self.vel
-        self.cmd_vel_publisher.publish(twist_msg)
+        if self.current_mode == "MANUAL":
+            self.cmd_vel_publisher.publish(self.vel)
+        else:
+            zero = Twist()
+            self.cmd_vel_publisher.publish(zero)
 
 
     # --- Helper method to stop the robot ---
     def stop_motion(self):
         if self.motion_timer is not None:
             self.motion_timer.cancel()
-        twist_msg = Twist()
-        self.cmd_vel_publisher.publish(twist_msg)
+            self.motion_timer = None
         self.vel = Twist()
         self.get_logger().info("Motion stopped (timer expired or stop command).")
 
-    # --- Helper method to publish current e-stop state ---
-    def publish_estop_state(self):
+    # --- Helper method to publish current state and estop (derived from mode)---
+    def publish_state(self):
+        mode_msg = String()
+        mode_msg.data = self.current_mode
+        self.mode_publisher.publish(mode_msg)
+
         estop_msg = Bool()
-        estop_msg.data = self.estop_latched
+        estop_msg.data = (self.current_mode == "ESTOP")
         self.estop_publisher.publish(estop_msg)
+
         
     def get_number(self, command):
         # Try to extract number words from the command
