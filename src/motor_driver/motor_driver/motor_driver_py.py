@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
+from rclpy.qos import QoSProfile, DurabilityPolicy
 import pigpio
 
 class MotorDriverNode(Node):
@@ -47,10 +48,10 @@ class MotorDriverNode(Node):
         self.estop_active = False
         self.last_cmd_time = self.get_clock().now()
 
+        latched_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         # --- Subscribers ---
         self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
-        # Latched QoS for estop is safer, but standard is fine for this receiver
-        self.create_subscription(Bool, '/estop', self.estop_callback, 10)
+        self.create_subscription(Bool, '/estop', self.estop_callback, latched_qos)
 
         # --- Dead-man Timer (Safety) ---
         # Check every 0.1s. If no command for 0.5s, stop.
