@@ -16,18 +16,26 @@ class FollowControllerNode(Node):
         self.declare_parameter('center_deadband', 0.05)
         self.declare_parameter('max_linear', 0.25)
         self.declare_parameter('max_angular', 1.0)
+        self.declare_parameter('accel_linear', 0.2)   # m/s^2
+        self.declare_parameter('accel_angular', 1.5)  # rad/s^2
     
         self.k_lin = self.get_parameter('k_linear').value
         self.k_ang = self.get_parameter('k_angular').value
+        self.accel_lin = self.get_parameter('accel_linear').value
+        self.accel_ang = self.get_parameter('accel_angular').value
         self.target_area = self.get_parameter('target_area').value
         self.max_lin = self.get_parameter('max_linear').value
         self.max_ang = self.get_parameter('max_angular').value
+        self.center_deadband = self.get_parameter('center_deadband').value
 
         # --- State ---
         self.current_mode = "MANUAL"
         self.estop_active = False
         self.last_bbox_time = 0.0
         self.bbox_timeout = 0.5
+        self.last_linear_x = 0.0
+        self.last_angular_z = 0.0
+        self.last_loop_time = self.time_now()
 
         latched_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
@@ -54,33 +62,82 @@ class FollowControllerNode(Node):
     
     def time_now(self):
         return self.get_clock().now().nanoseconds / 1e9
+
+    def reset_state(self):
+        """ Instant stop - reset smoothing memeory. """
+        self.last_linear_x = 0.0
+        self.last_angular_z = 0.0
     
+    def _apply_slew(self, target, last, max_delta):
+        """ 
+        Calculating Slew 
+        Naming a function _underscore_ is done to show that this function should only be called in this class
+
+        """
+        delta = target - last
+        delta = max(min(delta, max_delta), -max_delta)
+        slewed_target = last + delta
+        return slewed_target
+
+
     def control_loop(self):
-        twist = Twist()
+        """
+        This control loop does three things, 
+        Calculate Target -> distance of person from centre of camera
+        Apply Slew -> 
+        Publish
 
-        if self.current_mode != "FOLLOW":
-            self.cmd_pub.publish(twist)
-            return
 
-        time_diff = self.time_now() - self.last_bbox_time
-        if time_diff > self.bbox_timeout:
-            self.cmd_pub.publish(twist)
-            return
+        """
+        now = self.time_now()
+        dt = now - self.last_loop_time
+        self.last_loop_time = now
 
-        cx = self.current_bbox[0]
-        area = self.current_bbox[2]
-        error_x = cx - 0.5
-        deadband = self.get_parameter('center_deadband').value
-        if abs(error_x) > deadband:
-            twist.angular.z = -self.k_ang * error_x
-
-        error_area = self.target_area - area
-        twist.linear.x = self.k_lin * error_area
+        target_linear = 0.0
+        target_angular = 0.0
         
-        # current_bbox: [0]=cx (horizontal center 0-1), [1]=cy (vertical), [2]=area (size 0-1), [3]=conf
-        twist.linear.x = max(min(twist.linear.x, self.max_lin), -self.max_lin)
-        twist.angular.z = max(min(twist.angular.z, self.max_ang), -self.max_ang)
-        self.cmd_pub.publish(twist)
+        if self.estop_active or self.current_mode != "FOLLOW":
+            self.reset_state()
+            self.publish_twist(0.0, 0.0)
+            return 
+
+        time_diff = now - self.last_bbox_time
+        
+        if time_diff <= self.bbox_timeout:
+            # P control
+            cx = self.current_bbox[0]
+            area = self.current_bbox[2]
+
+            error_x = cx - 0.5
+            if abs(error_x) > self.center_deadband:
+                target_angular = -self.k_ang * error_x
+
+            error_area = self.target_area - area
+            target_linear = self.k_lin * error_area
+
+            # Hard clamp targets
+            target_linear = max(min(target_linear, self.max_lin), -self.max_lin)
+            target_angular = max(min(target_angular, self.max_ang), -self.max_ang)
+            
+        # Calculate max allowed change this loop
+        max_delta_lin = self.accel_lin * dt
+        max_delta_ang = self.accel_ang * dt
+
+        #Apply Slew
+        smooth_linear = self._apply_slew(target_linear,self.last_linear_x, max_delta_lin)
+        smooth_angular = self._apply_slew(target_angular, self.last_angular_z, max_delta_ang)
+
+        self.publish_twist(smooth_linear, smooth_angular)
+
+    def publish_twist(self, linear, angular):
+        msg = Twist()
+        msg.linear.x = float(linear)
+        msg.angular.z = float(angular)
+        self.cmd_pub.publish(msg)
+
+        # save for next loop
+        self.last_linear_x = linear
+        self.last_angular_z = angular
 
 def main(args=None):
     rclpy.init(args=args)
