@@ -10,14 +10,14 @@ class FollowControllerNode(Node):
 
         # --- Parameters ---
         self.declare_parameter('k_linear', 1.2)
-        self.declare_parameter('k_angular', 1.8)
+        self.declare_parameter('k_angular', 3)
         self.declare_parameter('target_area', 0.7)
         self.declare_parameter('safe_area', 0.30)
         self.declare_parameter('center_deadband', 0.05)
         self.declare_parameter('max_linear', 0.25)
-        self.declare_parameter('max_angular', 1.0)
-        self.declare_parameter('accel_linear', 0.2)   # m/s^2
-        self.declare_parameter('accel_angular', 1.5)  # rad/s^2
+        self.declare_parameter('max_angular', 2.5)
+        self.declare_parameter('accel_linear', 0.6)   # m/s^2
+        self.declare_parameter('accel_angular', 4)  # rad/s^2
     
         self.k_lin = self.get_parameter('k_linear').value
         self.k_ang = self.get_parameter('k_angular').value
@@ -110,7 +110,12 @@ class FollowControllerNode(Node):
 
             error_x = cx - 0.5
             if abs(error_x) > self.center_deadband:
-                target_angular = -self.k_ang * error_x
+                raw_angular = -self.k_ang * error_x
+                min_turn = 0.7   # tune 0.5–1.0 as needed
+                if abs(raw_angular) < min_turn:
+                    target_angular = min_turn * (1 if raw_angular > 0 else -1)
+                else:
+                    target_angular = raw_angular
 
             error_area = self.target_area - area
             target_linear = self.k_lin * error_area
