@@ -5,18 +5,46 @@ This script creates a ROS 2 "node" (a program that can send/receive messages).
 It listens for camera images, runs AI detection to find people, and publishes
 the results so other nodes (like a robot controller) can use them.
 
+SETUP (Windows, Python 3.8):
+1) Create and activate a Python 3.8 virtual environment
+     py -3.8 -m venv %USERPROFILE%\ros2venv
+     %USERPROFILE%\ros2venv\Scripts\activate
+
+2) Install core Python packages used by this node
+     pip install --upgrade pip
+     pip install ultralytics opencv-python numpy
+
+3) Install PyTorch
+   - CPU only (works everywhere, slower):
+       pip install torch torchvision torchaudio
+   - NVIDIA GPU (faster, recommended if available):
+       Install/update NVIDIA driver, then install a CUDA-enabled PyTorch build
+       that matches your GPU/driver from https://pytorch.org/get-started/locally/
+       (CUDA Toolkit is optional for runtime if you install PyTorch CUDA wheels).
+
+4) Build and source ROS workspace (after package changes)
+     cd C:\dev\ros2_ws
+     colcon build
+     .\install\local_setup.ps1
+
+5) Run this node
+   - Launch file route (recommended on this project):
+       ros2 launch yolo_detect vision_pc.launch.py
+   - Direct script route:
+       python C:\dev\ros2_ws\src\yolo_detect\yolo_detect\yolo_detect_py.py
+
 NOTE ON YOLO / GPU REQUIREMENTS:
 - This node uses the Ultralytics YOLO Python package installed in the PC venv.
 - The package version and model weights DO NOT auto-update unless you manually
   run a pip upgrade (e.g. `pip install -U ultralytics`) or change the model name.
 - This protects you from a future YOLO release that might require more VRAM
   than your current GPU (8 GB). To be extra safe, you can pin a known-good
-  version in the venv, e.g. `pip install "ultralytics==8.3.0"`.
+  version in the venv, e.g. `pip install "ultralytics==8.4.24"`.
 
 FLOW:
   Camera --> /camera/image_raw/compressed --> [This Node] --> /person_bbox   (for robot control)
-                                                          --> /detections    (standard ROS format)
-                                                          --> /yolo_debug    (image with boxes drawn)
+                                                         --> /detections    (standard ROS format)
+                                                         --> /yolo_debug    (image with boxes drawn)
 
 To view the debug image:
   ros2 run rqt_image_view rqt_image_view
@@ -37,7 +65,7 @@ from std_msgs.msg import Float32MultiArray    # Simple array of numbers
 
 import cv2              # OpenCV - image processing library
 import numpy as np      # NumPy - for working with arrays/matrices
-from ultralytics import YOLO  # YOLOv8 - the AI object detection model
+from ultralytics import YOLO  # YOLO11 - the AI object detection model
 import torch            # PyTorch - deep learning framework (used to check for GPU)
 
 
@@ -61,10 +89,10 @@ class YoloDetectNode(Node):
         # PARAMETERS - Configurable settings (can be changed at runtime)
         # -----------------------------------------------------------------
         # declare_parameter() creates a setting that can be changed when launching
-        # Example: ros2 run yolo_detect yolo_detect --ros-args -p model:=yolov8s.pt
+        # Example: ros2 run yolo_detect yolo_detect_node --ros-args -p model:=yolo11s.pt
         
-        self.declare_parameter('model', 'yolov8n.pt')  # Which YOLO model file to use
-        # Available models: yolov8n.pt (fast), yolov8s.pt, yolov8m.pt, yolov8l.pt, yolov8x.pt (accurate)
+        self.declare_parameter('model', 'yolo11n.pt')  # Which YOLO model file to use
+        # Available models: yolo11n.pt (fast), yolo11s.pt, yolo11m.pt, yolo11l.pt, yolo11x.pt (accurate)
         
         self.declare_parameter('device', 'cuda' if torch.cuda.is_available() else 'cpu')
         # 'cuda' = use NVIDIA GPU (fast), 'cpu' = use processor (slower)

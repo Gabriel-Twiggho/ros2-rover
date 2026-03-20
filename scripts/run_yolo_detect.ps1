@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Wrapper script to run the YOLOv8 node on Windows.
+    Wrapper script to run the YOLO11 node on Windows.
     Safely sources ROS 2 and runs the node with the correct Python executable.
 
 .DESCRIPTION
@@ -24,6 +24,7 @@ $env:ROS_DOMAIN_ID="42"
 $VENV_PATH = "$env:USERPROFILE\ros2venv"
 $ROS_BASE = "C:\dev\ros2_iron\local_setup.ps1"
 $ROS_WS   = "C:\dev\ros2_ws\install\local_setup.ps1"
+$MODEL_NAME = "yolo11n.pt"
 
 # 3. Source Base ROS 2
 if (Test-Path $ROS_BASE) {
@@ -62,6 +63,7 @@ $NODE_SCRIPT = "C:\dev\ros2_ws\src\yolo_detect\yolo_detect\yolo_detect_py.py"
 # 7. Execute
 Write-Host "Starting YOLO Detect Node..." -ForegroundColor Cyan
 Write-Host "Using Python: $PYTHON_EXE" -ForegroundColor Gray
+Write-Host "Using Model:  $MODEL_NAME" -ForegroundColor Gray
 
 # The '&' operator runs the command string provided
-& $PYTHON_EXE $NODE_SCRIPT
+& $PYTHON_EXE $NODE_SCRIPT --ros-args -p model:=$MODEL_NAME
