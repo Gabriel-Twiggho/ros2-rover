@@ -1,6 +1,8 @@
 # ROS 2 Voice-Controlled Follow-Me Rover
 
-A modular, differential-drive rover built around a Raspberry Pi 4 and ROS 2. It accepts offline voice commands, can switch into a vision-guided follow-me mode, and is designed to keep real-time motor control on the rover while GPU-heavy person detection runs on a Windows PC.
+A modular, experimental differential-drive rover built around a Raspberry Pi 4 and ROS 2. It implements offline voice commands, a split Pi/Windows computer-vision pipeline, and the software needed to drive and follow a detected person. Development concluded during physical follow-controller tuning, so this repository documents a working architecture and prototype rather than a floor-ready autonomous robot.
+
+[View the portfolio project page](https://gabriel-twiggho.github.io/#ai-robot)
 
 The code is split deliberately across two branches:
 
@@ -11,7 +13,24 @@ The code is split deliberately across two branches:
 
 > **Safety notice:** this is an experimental physical robot. Test with the wheels raised, a clear stop procedure, and motor power that can be disconnected independently. The repository implements a *software* e-stop; it is not a replacement for a hardware emergency stop or responsible supervision.
 
-## What it does
+## Project outcome
+
+The project reached Phase H before development concluded. The physical rover, ROS 2 workspaces, speech pipeline, cross-device vision pipeline, simulation, motor driver, velocity multiplexer, and follow-controller code were built. Reliable real-world turning and person-following still required substantial PID/PD tuning.
+
+| Area | Outcome |
+| --- | --- |
+| Raspberry Pi platform | ROS 2 Iron built from source on Raspberry Pi OS Bookworm; camera topic verified |
+| Speech interface | Offline Vosk speech recognition and command parsing implemented |
+| Simulation | Voice-to-motion path, virtual differential drive, odometry, TF, and RViz workflow implemented |
+| PC vision | YOLO person detection, debug viewer, and `/person_bbox` exchange implemented on `PC_Branch` |
+| Hardware and motion | Physical rover, Cytron motor-driver node, velocity mux, and follow controller reached integration/tuning |
+| Physical follow mode | Not tuned to repeatable, reliable real-world behaviour before the project concluded |
+| Phase I safety/autonomy | Floor-safety and obstacle-system validation not completed |
+| Phase J intelligence | LLM/LLAVA integration, context-aware person selection, and named-location navigation not implemented |
+
+The remaining work required repeated physical testing and controller tuning. Development ended when the available project time shifted to other volunteer commitments. The unfinished scope is recorded here so the repository does not overstate what was demonstrated.
+
+## Implemented capabilities
 
 - Captures microphone audio on the Raspberry Pi and publishes it on ROS 2.
 - Runs offline speech-to-text with Vosk, then parses commands such as motion, `follow me`, `manual`, `stop`, and `resume`.
@@ -217,7 +236,7 @@ ros2 topic hz /detections
 | --- | --- |
 | `forward [seconds]` / `backward [seconds]` | Timed manual motion |
 | `[angle] left` / `[angle] right` | Timed turn; say the angle before the direction, e.g. `ninety degrees left` |
-| `follow me` | Selects `FOLLOW` mode; camera/YOLO control is routed through the mux |
+| `follow me` | Selects `FOLLOW` mode and routes camera/YOLO output through the controller; physical tuning remains incomplete |
 | `manual` | Returns to manual voice-control mode |
 | `stop` or `emergency` | Activates the software e-stop and publishes zero velocity |
 | `resume` | Clears the e-stop and restores the previous mode |
@@ -225,6 +244,6 @@ ros2 topic hz /detections
 
 ## Current status
 
-The repository currently contains the core voice, vision, command arbitration, simulation, and motor-control code, along with a YOLO11 PC pipeline and a tuned follow controller. The project journal records successful native ROS 2 Iron and camera-topic verification on the Pi, plus staged bench and integration work.
+The project is concluded at Phase H. The repository preserves the core voice, vision, command-arbitration, simulation, motor-control, and follow-controller code, together with the YOLO11 Windows pipeline. It should be treated as a development archive and technical reference, not as a production-ready autonomous rover.
 
 
