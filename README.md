@@ -227,11 +227,4 @@ ros2 topic hz /detections
 
 The repository currently contains the core voice, vision, command arbitration, simulation, and motor-control code, along with a YOLO11 PC pipeline and a tuned follow controller. The project journal records successful native ROS 2 Iron and camera-topic verification on the Pi, plus staged bench and integration work.
 
-Planned or deliberately future work includes a conversational LLM/TTS bridge, person tracking that persists across multiple detections, SLAM, and gameplay-style extensions. These are design goals, not currently shipped packages in this repository.
 
-## Notes for contributors
-
-- Do not commit model weights (`*.pt`), colcon build outputs, or Python cache files; these are already ignored.
-- Keep Pi-side and PC-side ROS domain, topic names, and message contracts in sync.
-- Test the vision/follow-control chain in simulation before enabling physical motor power.
-- No project license is currently declared. Add one before distributing or accepting external contributions.
